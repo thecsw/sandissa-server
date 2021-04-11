@@ -36,7 +36,15 @@ func startRouter() {
 	r.Use(loggingMiddleware)
 
 	// Declare and define our HTTP handler
-	handler := cors.Default().Handler(r)
+	//handler := cors.Default().Handler(r)
+	corsOptions := cors.New(cors.Options{
+		AllowedOrigins:   []string{"https://sandyuraz.com"},
+		AllowedMethods:   []string{http.MethodPost, http.MethodGet},
+		AllowedHeaders:   []string{"Access-Control-Allow-Methods", "Authorization", "Content-Type"},
+		AllowCredentials: true,
+		Debug:            true,
+	})
+	handler := corsOptions.Handler(r)
 	srv := &http.Server{
 		Handler: handler,
 		Addr:    ":5000",
@@ -61,16 +69,20 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		header := r.Header.Get("Authorization")
 		tokens := strings.Split(header, "Basic ")
+		fmt.Println("Got header:", header)
+		fmt.Println("Tokens:", tokens)
 		if len(tokens) != 2 {
 			httpJSON(w, nil, http.StatusBadRequest, errors.New("no auth provided"))
 			return
 		}
 		decoded, err := base64.StdEncoding.DecodeString(tokens[1])
+		fmt.Println("Decoded:", string(decoded))
 		if err != nil {
 			httpJSON(w, nil, http.StatusBadRequest, errors.New("failed auth decoding"))
 			return
 		}
 		creds := strings.Split(string(decoded), ":")
+		fmt.Println("Credentials:", creds)
 		if len(creds) != 2 {
 			httpJSON(w, nil, http.StatusBadRequest, errors.New("malformed auth"))
 			return
@@ -136,7 +148,7 @@ func ledHandler(w http.ResponseWriter, r *http.Request) {
 
 // httpJSON is a generic http object passer.
 func httpJSON(w http.ResponseWriter, data interface{}, status int, err error) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(status)
 	if err != nil && status >= 400 && status < 600 {
