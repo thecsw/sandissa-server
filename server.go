@@ -46,6 +46,7 @@ func main() {
 
 	// Create sample users
 	addUser("sandy", "lily")
+	addUser("anissa", "secret")
 
 	// Initialize REST
 	fmt.Println()
