@@ -13,7 +13,7 @@ const (
 	broker   = "mqtt.sandyuraz.com"
 	port     = 1883
 	clientID = "sandissa-secret-kitty"
-	username = "kitty"
+	username = "kitty-server"
 
 	topicTemperature = "sensors/Temp"
 	topicLED         = "controls/LED"
@@ -70,14 +70,25 @@ func getTLS() (*tls.Config, error) {
 // subscribe subscribes to a topic.
 func subscribe(QoS byte, topic string) {
 	token := clientMQTT.Subscribe(topic, QoS, nil)
-	token.Wait()
-	l("Subscribed to topic: " + topic)
+	<-token.Done()
+	fields := params{"topic": topic, "qos": QoS}
+	if err := token.Error(); err != nil {
+		lerr("Failed to subscribe", err, fields)
+		return
+	}
+	lf("Subscribed", fields)
 }
 
 // publish publishes a payload to a topic.
 func publish(QoS byte, topic string, payload string) {
 	token := clientMQTT.Publish(topic, QoS, false, payload)
-	token.Wait()
+	<-token.Done()
+	fields := params{"topic": topic, "qos": QoS, "payload": payload}
+	if err := token.Error(); err != nil {
+		lerr("Failed to publish", err, fields)
+		return
+	}
+	lf("Published", fields)
 }
 
 // messagePubHandler handles all payload from subscribed topics.

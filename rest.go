@@ -1,12 +1,17 @@
 package main
 
 import (
+	"crypto/sha512"
 	_ "embed"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -54,7 +59,36 @@ func startRouter() {
 
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Println(r.RequestURI)
+		header := r.Header.Get("Authorization")
+		tokens := strings.Split(header, "Basic ")
+		if len(tokens) != 2 {
+			httpJSON(w, nil, http.StatusBadRequest, errors.New("no auth provided"))
+			return
+		}
+		decoded, err := base64.StdEncoding.DecodeString(tokens[1])
+		if err != nil {
+			httpJSON(w, nil, http.StatusBadRequest, errors.New("failed auth decoding"))
+			return
+		}
+		creds := strings.Split(string(decoded), ":")
+		if len(creds) != 2 {
+			httpJSON(w, nil, http.StatusBadRequest, errors.New("malformed auth"))
+			return
+		}
+		user, pass := creds[0], creds[1]
+		if user == "" {
+			httpJSON(w, nil, http.StatusBadRequest, errors.New("no user provided"))
+			return
+		}
+		foundUser, err := getUser(user)
+		if err != nil || foundUser.Name == "" {
+			httpJSON(w, nil, http.StatusForbidden, errors.New("no user found"))
+			return
+		}
+		if foundUser.Password != shaEncode(pass) {
+			httpJSON(w, nil, http.StatusForbidden, errors.New("bad login"))
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }
@@ -64,6 +98,7 @@ func rootPage(w http.ResponseWriter, r *http.Request) {
 	httpHTML(w, "hello, world")
 }
 
+// tempHandler returns the last temperature reading.
 func tempHandler(w http.ResponseWriter, r *http.Request) {
 	temp, err := getTempDB()
 	if err != nil {
@@ -73,6 +108,7 @@ func tempHandler(w http.ResponseWriter, r *http.Request) {
 	httpJSON(w, httpMessageReturn{Message: temp.Value}, http.StatusOK, nil)
 }
 
+// tempsHandler returns the last 60 recorded temperature values.
 func tempsHandler(w http.ResponseWriter, r *http.Request) {
 	temp, err := getTempsDB()
 	if err != nil {
@@ -86,6 +122,7 @@ func tempsHandler(w http.ResponseWriter, r *http.Request) {
 	httpJSON(w, httpMessageReturn{Message: toReturn}, http.StatusOK, nil)
 }
 
+// ledHandler handles POST to control lights.
 func ledHandler(w http.ResponseWriter, r *http.Request) {
 	request := &ledStatusRequset{}
 	json.NewDecoder(r.Body).Decode(request)
@@ -109,13 +146,25 @@ func httpJSON(w http.ResponseWriter, data interface{}, status int, err error) {
 	json.NewEncoder(w).Encode(data)
 }
 
-// httpHTML sends a good HTML response
+// httpHTML sends a good HTML response.
 func httpHTML(w http.ResponseWriter, data interface{}) {
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, data)
 }
 
-// ledStatusRequset is the POST body for LED
+// shaEncode return SHA512 sum of a string.
+func shaEncode(input string) string {
+	sha := sha512.Sum512([]byte(input))
+	return hex.EncodeToString(sha[:])
+}
+
+// UserCredentials unparses POST request.
+type UserCredentials struct {
+	Name     string `json:"username"`
+	Password string `json:"password"`
+}
+
+// ledStatusRequset is the POST body for LED.
 type ledStatusRequset struct {
 	Status bool `json:"status"`
 }
