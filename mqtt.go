@@ -76,7 +76,6 @@ func subscribe(QoS byte, topic string) {
 		lerr("Failed to subscribe", err, fields)
 		return
 	}
-	lf("Subscribed", fields)
 }
 
 // publish publishes a payload to a topic.
@@ -88,12 +87,12 @@ func publish(QoS byte, topic string, payload string) {
 		lerr("Failed to publish", err, fields)
 		return
 	}
-	lf("Published", fields)
+	lf("Published to MQTT Broker", fields)
 }
 
 // messagePubHandler handles all payload from subscribed topics.
 var messagePubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
-	lf("Received message", params{
+	lf("Received an MQTT payload", params{
 		"payload": string(msg.Payload()),
 		"topic":   string(msg.Topic()),
 	})
@@ -102,10 +101,10 @@ var messagePubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Me
 
 // connectHandler triggers when connection is successful
 var connectHandler mqtt.OnConnectHandler = func(client mqtt.Client) {
-	l("Successfully connected: " + broker)
+	//l("Successfully connected: " + broker)
 }
 
 // connectLostHandler triggers when connection is lost
 var connectLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, err error) {
-	l("Connection lost:" + err.Error())
+	//l("Connection lost:" + err.Error())
 }

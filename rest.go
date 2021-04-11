@@ -18,7 +18,8 @@ import (
 	"github.com/rs/cors"
 )
 
-var (
+const (
+	RESTPORT              = ":5000"
 	RESTClientCert string = "./rest/cert1.pem"
 	RESTClientKey  string = "./rest/privkey1.pem"
 )
@@ -29,11 +30,15 @@ func startRouter() {
 	r := mux.NewRouter()
 	// Standard GET methods to retrieve blogs and pages
 	r.HandleFunc("/", rootPage).Methods(http.MethodGet)
-	r.HandleFunc("/temp", tempHandler).Methods(http.MethodGet)
-	r.HandleFunc("/temps", tempsHandler).Methods(http.MethodGet)
-	r.HandleFunc("/led", ledHandler).Methods(http.MethodPost)
 
-	r.Use(loggingMiddleware)
+	s := r.PathPrefix("/cmd").Subrouter()
+
+	s.HandleFunc("/temp", tempHandler).Methods(http.MethodGet)
+	s.HandleFunc("/temps", tempsHandler).Methods(http.MethodGet)
+	s.HandleFunc("/led", ledHandler).Methods(http.MethodPost)
+	s.HandleFunc("/auth", verifyAuth).Methods(http.MethodPost)
+
+	s.Use(loggingMiddleware)
 
 	// Declare and define our HTTP handler
 	//handler := cors.Default().Handler(r)
@@ -42,12 +47,12 @@ func startRouter() {
 		AllowedMethods:   []string{http.MethodPost, http.MethodGet},
 		AllowedHeaders:   []string{"Access-Control-Allow-Methods", "Authorization", "Content-Type"},
 		AllowCredentials: true,
-		Debug:            true,
+		Debug:            false,
 	})
 	handler := corsOptions.Handler(r)
 	srv := &http.Server{
 		Handler: handler,
-		Addr:    ":5000",
+		Addr:    RESTPORT,
 		// Good practice: enforce timeouts for servers you create!
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
@@ -67,22 +72,17 @@ func startRouter() {
 
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		header := r.Header.Get("Authorization")
-		tokens := strings.Split(header, "Basic ")
-		fmt.Println("Got header:", header)
-		fmt.Println("Tokens:", tokens)
+		tokens := strings.Split(r.Header.Get("Authorization"), "Basic ")
 		if len(tokens) != 2 {
 			httpJSON(w, nil, http.StatusBadRequest, errors.New("no auth provided"))
 			return
 		}
 		decoded, err := base64.StdEncoding.DecodeString(tokens[1])
-		fmt.Println("Decoded:", string(decoded))
 		if err != nil {
 			httpJSON(w, nil, http.StatusBadRequest, errors.New("failed auth decoding"))
 			return
 		}
 		creds := strings.Split(string(decoded), ":")
-		fmt.Println("Credentials:", creds)
 		if len(creds) != 2 {
 			httpJSON(w, nil, http.StatusBadRequest, errors.New("malformed auth"))
 			return
@@ -143,6 +143,11 @@ func ledHandler(w http.ResponseWriter, r *http.Request) {
 		toSend = "on"
 	}
 	publish(1, topicLED, toSend)
+	httpJSON(w, httpMessageReturn{Message: "OK"}, http.StatusOK, nil)
+}
+
+// verifyAuth verifies that the credentials are OK
+func verifyAuth(w http.ResponseWriter, r *http.Request) {
 	httpJSON(w, httpMessageReturn{Message: "OK"}, http.StatusOK, nil)
 }
 
