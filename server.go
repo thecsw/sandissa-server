@@ -45,8 +45,12 @@ func main() {
 	spinnerMQTT.Stop()
 
 	// Create sample users
-	addUser("sandy", "lily")
-	addUser("anissa", "secret")
+	if err := addUser("sandy", "lily"); err != nil {
+		pterm.Warning.Println("Failed adding sandy:", err.Error())
+	}
+	if err := addUser("anissa", "secret"); err != nil {
+		pterm.Warning.Println("Failed adding anissa:", err.Error())
+	}
 
 	// Initialize REST
 	fmt.Println()

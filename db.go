@@ -39,7 +39,7 @@ type Temperature struct {
 type User struct {
 	gorm.Model
 
-	Name     string
+	Name     string `gorm:"unique"`
 	Password string
 }
 
@@ -84,7 +84,7 @@ func addUser(name, pass string) error {
 // getUser return the user if found.
 func getUser(name string) (*User, error) {
 	user := &User{}
-	return user, DB.Model(&User{Name: name}).First(user).Error
+	return user, DB.Model(&User{}).Where("name = ?", name).First(user).Error
 }
 
 // closeDB closes the database.
