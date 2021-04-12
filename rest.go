@@ -8,13 +8,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/patrickmn/go-cache"
 	"github.com/rs/cors"
 )
 
@@ -22,6 +25,14 @@ const (
 	RESTPORT              = ":5000"
 	RESTClientCert string = "./rest/cert1.pem"
 	RESTClientKey  string = "./rest/privkey1.pem"
+)
+
+var (
+	attemptCooldown  = 14 * time.Minute
+	badLoginAttempts = cache.New(attemptCooldown, attemptCooldown)
+
+	usernameRegexp = regexp.MustCompile(`^[-a-zA-Z0-9]{3,16}$`)
+	passwordRegexp = regexp.MustCompile(`^[^ ]{2,32}$`)
 )
 
 // startRouter starts the mux router and blocks until a crash or
@@ -72,6 +83,15 @@ func startRouter() {
 
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ipAddr, err := extractIP(r)
+		if err != nil {
+			httpJSON(w, nil, http.StatusBadRequest, errors.New("unknown origin"))
+			return
+		}
+		if number, found := badLoginAttempts.Get(ipAddr); found && number.(uint) >= 4 {
+			httpJSON(w, nil, http.StatusForbidden, errors.New("origin blocked"))
+			return
+		}
 		tokens := strings.Split(r.Header.Get("Authorization"), "Basic ")
 		if len(tokens) != 2 {
 			httpJSON(w, nil, http.StatusBadRequest, errors.New("no basic auth provided"))
@@ -92,13 +112,21 @@ func loggingMiddleware(next http.Handler) http.Handler {
 			httpJSON(w, nil, http.StatusBadRequest, errors.New("bad user credentials"))
 			return
 		}
+		// Quickly sanitize the username and the password
+		if !usernameRegexp.MatchString(user) || !passwordRegexp.MatchString(pass) {
+			httpJSON(w, nil, http.StatusBadRequest, errors.New("bad user credentials"))
+			return
+		}
 		foundUser, err := getUser(user)
 		if err != nil || foundUser.Name == "" {
-			httpJSON(w, nil, http.StatusForbidden, errors.New("requested user not found"))
+			httpJSON(w, nil, http.StatusForbidden, errors.New("bad user credentials"))
 			return
 		}
 		if foundUser.Password != shaEncode(pass) {
-			httpJSON(w, nil, http.StatusForbidden, errors.New("wrong username or password"))
+			httpJSON(w, nil, http.StatusForbidden, errors.New("bad user credentials"))
+			// Someone is maybe trying to guess the password
+			badLoginAttempts.Add(ipAddr, uint(0), cache.DefaultExpiration)
+			badLoginAttempts.IncrementUint(ipAddr, 1)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -173,6 +201,19 @@ func httpHTML(w http.ResponseWriter, data interface{}) {
 func shaEncode(input string) string {
 	sha := sha512.Sum512([]byte(input))
 	return hex.EncodeToString(sha[:])
+}
+
+// extractIP makes sure the request has a proper request IP
+func extractIP(r *http.Request) (string, error) {
+	// if not a proper remote addr, return empty
+	if !strings.ContainsRune(r.RemoteAddr, ':') {
+		return "", errors.New("lol")
+	}
+	ipAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil || ipAddr == "" {
+		return "", errors.New("Request has failed origin validation. Please retry.")
+	}
+	return ipAddr, nil
 }
 
 // UserCredentials unparses POST request.
