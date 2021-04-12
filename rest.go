@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	RESTPORT              = ":5000"
+	RESTPORT              = ":3737"
 	RESTClientCert string = "./rest/cert1.pem"
 	RESTClientKey  string = "./rest/privkey1.pem"
 )
