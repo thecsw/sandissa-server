@@ -1,2 +1,12 @@
-# sandissa-server
-Separate TOP SECRET repo for the server code
+# Sandissa: Server
+
+```
+           ███████  █████  ███    ██ ██████  ██ ███████ ███████  █████
+           ██      ██   ██ ████   ██ ██   ██ ██ ██      ██      ██   ██
+           ███████ ███████ ██ ██  ██ ██   ██ ██ ███████ ███████ ███████
+                ██ ██   ██ ██  ██ ██ ██   ██ ██      ██      ██ ██   ██
+           ███████ ██   ██ ██   ████ ██████  ██ ███████ ███████ ██   ██
+
+                                Server for Sandissa
+                 Handle incoming REST, verify auth, and call MQTT
+```

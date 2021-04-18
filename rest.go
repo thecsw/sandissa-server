@@ -56,7 +56,7 @@ func startRouter() {
 	corsOptions := cors.New(cors.Options{
 		AllowedOrigins:   []string{"https://sandyuraz.com"},
 		AllowedMethods:   []string{http.MethodPost, http.MethodGet},
-		AllowedHeaders:   []string{"Access-Control-Allow-Methods", "Authorization", "Content-Type"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type"},
 		AllowCredentials: true,
 		Debug:            false,
 	})
